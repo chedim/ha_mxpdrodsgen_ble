@@ -1,0 +1,46 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "MaxPeedingRods generator",
+        "description": "Select the generator's Bluetooth device, or enter its MAC address.",
+        "data": { "address": "Bluetooth address" }
+      },
+      "credentials": {
+        "title": "Generator credentials",
+        "description": "Enter the local credentials captured once from the Tuya cloud for {address}. They are stored locally; the generator is read over Bluetooth with no cloud connection.",
+        "data": {
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "uuid": "UUID",
+          "device_name": "Name",
+          "sec_key": "Secondary key (only if required)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This generator is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": { "name": "Power output" },
+      "load": { "name": "Load" },
+      "voltage": { "name": "Voltage" },
+      "frequency": { "name": "Frequency" },
+      "engine_speed": { "name": "Engine speed" },
+      "run_time": { "name": "Run time" },
+      "total_run_time": { "name": "Total run time" },
+      "online_state": { "name": "Link state" },
+      "fault": { "name": "Fault code" },
+      "charging_capacity": { "name": "Charging capacity" },
+      "generator_sn": { "name": "Serial number" },
+      "signal_strength": { "name": "Signal strength" }
+    },
+    "switch": {
+      "generator": { "name": "Generator" },
+      "eco_mode": { "name": "ECO mode" }
+    }
+  }
+}

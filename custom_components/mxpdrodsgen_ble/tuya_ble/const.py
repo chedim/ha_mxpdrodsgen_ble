@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+from enum import Enum
+
+GATT_MTU = 20
+
+DEFAULT_ATTEMPTS = 0xFFFF
+
+# GATT characteristics and services. Added support for multiple generations/services.
+# Dynamic selection mechanism contributed by @Shirkamdev (https://github.com/Shirkamdev/ha_tuya_ble).
+
+CHARACTERISTIC_NOTIFY = "00002b10-0000-1000-8000-00805f9b34fb"
+CHARACTERISTIC_WRITE = "00002b11-0000-1000-8000-00805f9b34fb"
+
+CHARACTERISTIC_NOTIFY_FD50 = "00000002-0000-1001-8001-00805f9b07d0"
+CHARACTERISTIC_WRITE_FD50 = "00000001-0000-1001-8001-00805f9b07d0"
+
+SERVICE_UUID = "0000fd50-0000-1000-8000-00805f9b34fb"
+SERVICE_UUID_A201 = "0000a201-0000-1000-8000-00805f9b34fb"
+
+# Tuple of all supported Service UUIDs
+SERVICE_UUIDS = (SERVICE_UUID_A201, SERVICE_UUID)
+
+# Maps each Tuya BLE GATT service UUID to its (notify, write) characteristic UUIDs.
+# Different protocol/firmware generations expose the same data over different
+# characteristic UUIDs, so the actual pair must be picked per connected device.
+SERVICE_CHARACTERISTICS = {
+    SERVICE_UUID_A201: (CHARACTERISTIC_NOTIFY, CHARACTERISTIC_WRITE),
+    SERVICE_UUID: (CHARACTERISTIC_NOTIFY_FD50, CHARACTERISTIC_WRITE_FD50),
+}
+
+SERVICE_UUID_TEMP = "0000a201-0000-1000-8000-00805f9b34fb"
+
+MANUFACTURER_DATA_ID = 0x07D0
+
+# The device answers within a few hundred ms or not at all.
+RESPONSE_WAIT_TIMEOUT = 15
+
+# Connection attempts per _ensure_connected() call and reconnect backoff.
+CONNECT_ATTEMPTS = 5
+RECONNECT_BACKOFF_MIN = 5
+RECONNECT_BACKOFF_MAX = 300
+
+# On-demand mode: seconds of inactivity before the link is dropped.
+DEFAULT_IDLE_DISCONNECT_DELAY = 30
+
+# Give the link time to settle after connect and retry the notify
+# subscription on transient GATT errors (e.g. 133 on ESP32 proxies).
+POST_CONNECT_DELAY = 0.3
+NOTIFY_ATTEMPTS = 3
+NOTIFY_RETRY_DELAY = 0.5
+
+# On-demand mode: seconds of inactivity before the link is dropped.
+DEFAULT_IDLE_DISCONNECT_DELAY = 30
+
+
+class TuyaBLECode(Enum):
+    """
+    Enum of common BLE codes
+    """
+
+    FUN_SENDER_DEVICE_INFO = 0x0000
+    FUN_SENDER_PAIR = 0x0001
+    FUN_SENDER_DPS = 0x0002
+    FUN_SENDER_DEVICE_STATUS = 0x0003
+
+    FUN_SENDER_UNBIND = 0x0005
+    FUN_SENDER_DEVICE_RESET = 0x0006
+
+    FUN_SENDER_OTA_START = 0x000C
+    FUN_SENDER_OTA_FILE = 0x000D
+    FUN_SENDER_OTA_OFFSET = 0x000E
+    FUN_SENDER_OTA_UPGRADE = 0x000F
+    FUN_SENDER_OTA_OVER = 0x0010
+
+    FUN_SENDER_DPS_V4 = 0x0027
+
+    FUN_RECEIVE_DP = 0x8001
+    FUN_RECEIVE_TIME_DP = 0x8003
+    FUN_RECEIVE_SIGN_DP = 0x8004
+    FUN_RECEIVE_SIGN_TIME_DP = 0x8005
+
+    FUN_RECEIVE_DP_V4 = 0x8006
+    FUN_RECEIVE_TIME_DP_V4 = 0x8007
+
+    FUN_RECEIVE_TIME1_REQ = 0x8011
+    FUN_RECEIVE_TIME2_REQ = 0x8012
+
+
+class TuyaBLEDataPointType(Enum):
+    DT_RAW = 0
+    DT_BOOL = 1
+    DT_VALUE = 2
+    DT_STRING = 3
+    DT_ENUM = 4
+    DT_BITMAP = 5

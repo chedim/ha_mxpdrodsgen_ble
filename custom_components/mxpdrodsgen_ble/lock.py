@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+from typing import Any
+
+from homeassistant.components.lock import (
+    LockEntity,
+    LockEntityFeature,
+    LockEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN, DPCode
+from .devices import (
+    TuyaBLEData,
+    TuyaBLEEntity,
+    TuyaBLEProductInfo,
+    TuyaBLECoordinator,
+    get_device_product_info,
+)
+from .tuya_ble import TuyaBLEDataPointType, TuyaBLEDevice
+
+# Pulido PLD_P130 Smart Lever Lock: momentary lever lock with free passage mode.
+PULIDO_PLD_P130 = "0qxp5u7s"
+
+DP71_RAW_UNLOCK_PRODUCT_IDS = frozenset({"2hmqh0ty", "djrqe0q6"})
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the Tuya BLE sensors."""
+    data: TuyaBLEData = hass.data[DOMAIN][entry.entry_id]
+    product = get_device_product_info(data.device)
+    if product and product.lock:
+        async_add_entities([TuyaBLELock(hass, data.coordinator, data.device, product)])
+
+
+class TuyaBLELock(TuyaBLEEntity, LockEntity):
+    platform = Platform.LOCK
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: TuyaBLECoordinator,
+        device: TuyaBLEDevice,
+        product: TuyaBLEProductInfo,
+    ) -> None:
+        super().__init__(
+            hass,
+            coordinator,
+            device,
+            product,
+            LockEntityDescription(key="lock", name=product.name),
+        )
+        self._attr_supported_features = LockEntityFeature.OPEN
+
+    @property
+    def is_locked(self) -> bool | None:
+        """Return true if lock is locked."""
+        if self._device.product_id == PULIDO_PLD_P130:
+            # "Unlocked" on this lock is held by free passage mode (DP33),
+            # which the lock re-reports on every connect. DP47 (motor state)
+            # is only sent on change, so after an HA restart it is absent and
+            # must not default the entity to locked.
+            free_passage = self._device.datapoints[33]
+            motor_state = self._device.datapoints[47]
+            if free_passage is None and motor_state is None:
+                return None
+            if free_passage is not None and free_passage.value:
+                return False
+            if motor_state is not None and motor_state.value:
+                return False  # momentary Open (DP6) in progress
+            return True
+        dpid = self.find_dpid(DPCode.LOCK_MOTOR_STATE)
+        if dpid is None:
+            dpid = DPCode.LOCK_MOTOR_STATE
+        if motor_state := self._device.datapoints.get_or_create(
+            dpid, TuyaBLEDataPointType.DT_BOOL, False
+        ):
+            return not motor_state.value
+        return None
+
+    async def async_lock(self, **kwargs: Any) -> None:
+        """Lock the lock."""
+        if self._device.product_id == PULIDO_PLD_P130:
+            # Pulido PLD_P130: DP46 (manual_lock) = True locks and also ends
+            # free passage mode (DP33). DP46 = False does nothing on this lock.
+            if manual_lock := self._device.datapoints.get_or_create(
+                46, TuyaBLEDataPointType.DT_BOOL, True
+            ):
+                await manual_lock.set_value(True)
+            return
+        manual_lock_id = self.find_dpid(DPCode.MANUAL_LOCK)
+        if manual_lock_id is not None:
+            if manual_lock := self._device.datapoints.get_or_create(
+                manual_lock_id, TuyaBLEDataPointType.DT_BOOL, True
+            ):
+                await manual_lock.set_value(True)
+        elif self.find_dpid(DPCode.LOCK_MOTOR_STATE) is not None:
+            if motor_state := self._device.datapoints.get_or_create(
+                self.find_dpid(DPCode.LOCK_MOTOR_STATE),
+                TuyaBLEDataPointType.DT_BOOL,
+                False,
+            ):
+                await motor_state.set_value(False)
+        elif self._device.product_id == "wgv4haro":
+            # Guard Dog Security Smart Lock locks automatically, locking command is no-op
+            # NOTE: Other momentary locks in category ms/jtmspro (like okkyfgfs, k53ok3u9,
+            # sidhzylo, a6nttc41, stugc8dl, xicdxood, rlyxv7pe, oyqux5vv, hs21i377, kholoaew)
+            # may also need updating in the future.
+            return
+        else:
+            if manual_lock := self._device.datapoints.get_or_create(
+                DPCode.MANUAL_LOCK, TuyaBLEDataPointType.DT_BOOL, True
+            ):
+                await manual_lock.set_value(True)
+
+    async def async_unlock(self, **kwargs: Any) -> None:
+        """Unlock the lock."""
+        if self._device.product_id == PULIDO_PLD_P130:
+            # Pulido PLD_P130 relocks by itself a few seconds after a BLE unlock,
+            # so "unlocked" is held by turning on free passage mode (DP33).
+            # The lock reports DP47 (motor state) on while it is held open, so
+            # is_locked stays accurate. Use Open for a momentary unlock.
+            if free_passage := self._device.datapoints.get_or_create(
+                33, TuyaBLEDataPointType.DT_BOOL, True
+            ):
+                await free_passage.set_value(True)
+            return
+        if self._device.product_id in DP71_RAW_UNLOCK_PRODUCT_IDS:
+            # EL605A knob lock: unlock is a DP71 (ble_unlock_check, Raw)
+            # trigger; a zero-length payload is enough. It also exposes
+            # manual_lock (DP46), so without this branch it would fall into
+            # the generic manual_lock path below and write DP46=False, which
+            # does not move the bolt. Verified on hardware.
+            if ble_unlock := self._device.datapoints.get_or_create(
+                71,
+                TuyaBLEDataPointType.DT_RAW,
+                b"",
+            ):
+                await ble_unlock.set_value(b"")
+            return
+        manual_lock_id = self.find_dpid(DPCode.MANUAL_LOCK)
+        if manual_lock_id is not None:
+            if manual_lock := self._device.datapoints.get_or_create(
+                manual_lock_id, TuyaBLEDataPointType.DT_BOOL, False
+            ):
+                await manual_lock.set_value(False)
+        elif self.find_dpid(DPCode.LOCK_MOTOR_STATE) is not None:
+            if motor_state := self._device.datapoints.get_or_create(
+                self.find_dpid(DPCode.LOCK_MOTOR_STATE),
+                TuyaBLEDataPointType.DT_BOOL,
+                True,
+            ):
+                await motor_state.set_value(True)
+        elif self._device.product_id == "wgv4haro":
+            # Guard Dog Security Smart Lock uses DP 6 for bluetooth unlock
+            # NOTE: Other momentary locks (e.g. okkyfgfs, k53ok3u9, sidhzylo, a6nttc41 on DP 6;
+            # or stugc8dl, xicdxood, rlyxv7pe, oyqux5vv, hs21i377, kholoaew on DP 71)
+            # may also need updating in the future.
+            if bluetooth_unlock := self._device.datapoints.get_or_create(
+                6, TuyaBLEDataPointType.DT_BOOL, False
+            ):
+                await bluetooth_unlock.set_value(True)
+        else:
+            if manual_lock := self._device.datapoints.get_or_create(
+                DPCode.MANUAL_LOCK, TuyaBLEDataPointType.DT_BOOL, False
+            ):
+                await manual_lock.set_value(False)
+
+    async def async_open(self, **kwargs: Any) -> None:
+        """Open the covering."""
+        if self._device.product_id == PULIDO_PLD_P130:
+            # Momentary BLE unlock (DP6); the lock relocks after ~3 seconds.
+            if bluetooth_unlock := self._device.datapoints.get_or_create(
+                6, TuyaBLEDataPointType.DT_BOOL, True
+            ):
+                await bluetooth_unlock.set_value(True)
+            return
+        await self.async_unlock(**kwargs)
