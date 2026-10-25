@@ -284,8 +284,8 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                 TuyaBLESensorMapping(
                     dp_id=102,
                     description=SensorEntityDescription(
-                        key="load",
-                        icon="mdi:gauge",
+                        key="fuel_level",
+                        icon="mdi:fuel",
                         native_unit_of_measurement=PERCENTAGE,
                         state_class=SensorStateClass.MEASUREMENT,
                     ),

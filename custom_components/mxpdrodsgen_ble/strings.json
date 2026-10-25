@@ -26,7 +26,7 @@
   "entity": {
     "sensor": {
       "power": { "name": "Power output" },
-      "load": { "name": "Load" },
+      "fuel_level": { "name": "Fuel level" },
       "voltage": { "name": "Voltage" },
       "frequency": { "name": "Frequency" },
       "engine_speed": { "name": "Engine speed" },

@@ -22,7 +22,7 @@ local.
 | Generator (switch) | 101 | Start / stop |
 | ECO mode (switch) | 108 | |
 | Power output | 104 | W |
-| Load | 102 | % |
+| Fuel level | 102 | % |
 | Voltage | 110 | V |
 | Frequency | 111 | Hz |
 | Engine speed | 112 | rpm |
