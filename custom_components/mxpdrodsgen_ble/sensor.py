@@ -310,6 +310,7 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                 ),
                 TuyaBLESensorMapping(
                     dp_id=112,
+                    force_add=False,
                     description=SensorEntityDescription(
                         key="engine_speed",
                         icon="mdi:engine",
@@ -336,7 +337,7 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                         entity_category=EntityCategory.DIAGNOSTIC,
                     ),
                 ),
-                TuyaBLEBatteryMapping(dp_id=115),
+                TuyaBLEBatteryMapping(dp_id=115, force_add=False),
                 TuyaBLESensorMapping(
                     dp_id=106,
                     description=SensorEntityDescription(
@@ -356,6 +357,7 @@ mapping: dict[str, TuyaBLECategorySensorMapping] = {
                 ),
                 TuyaBLESensorMapping(
                     dp_id=116,
+                    force_add=False,
                     description=SensorEntityDescription(
                         key="charging_capacity",
                         icon="mdi:battery-charging",
